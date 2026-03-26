@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Solar System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="solar"></canvas>
+<script>
+  const canvas = document.getElementById('solar');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Load textures
+  function loadImg(src) {
+    const img = new Image();
+    img.src = src;
+    return img;
+  }
+
+  const textures = {
+    bg:      loadImg('texture/2k_stars_milky_way.jpg'),
+    sun:     loadImg('texture/2k_sun.jpg'),
+    mercury: loadImg('texture/2k_mercury.jpg'),
+    venus:   loadImg('texture/2k_venus_atmosphere.jpg'),
+    earth:   loadImg('texture/2k_earth_daymap.jpg'),
+    moon:    loadImg('texture/2k_moon.jpg'),
+    mars:    loadImg('texture/2k_mars.jpg'),
+    jupiter: loadImg('texture/2k_jupiter.jpg'),
+    saturn:  loadImg('texture/2k_saturn.jpg'),
+    ring:    loadImg('texture/2k_saturn_ring_alpha.png'),
+    uranus:  loadImg('texture/2k_uranus.jpg'),
+    neptune: loadImg('texture/2k_neptune.jpg'),
+  };
+
+  // planet: { name, orbit, radius, speed, color, tex, angle }
+  const planets = [
+    { name:'Mercury', orbit:90,  radius:6,  speed:4.1,   color:'#b5b5b5', tex:'mercury', angle:0 },
+    { name:'Venus',   orbit:130, radius:10, speed:1.6,   color:'#e8cda0', tex:'venus',   angle:1 },
+    { name:'Earth',   orbit:175, radius:11, speed:1.0,   color:'#4fa3e0', tex:'earth',   angle:2 },
+    { name:'Mars',    orbit:220, radius:8,  speed:0.53,  color:'#c1440e', tex:'mars',    angle:3 },
+    { name:'Jupiter', orbit:290, radius:26, speed:0.084, color:'#c88b3a', tex:'jupiter', angle:0.5 },
+    { name:'Saturn',  orbit:365, radius:22, speed:0.034, color:'#e4d191', tex:'saturn',  angle:1.2 },
+    { name:'Uranus',  orbit:430, radius:16, speed:0.012, color:'#7de8e8', tex:'uranus',  angle:2.1 },
+    { name:'Neptune', orbit:490, radius:14, speed:0.006, color:'#3f54ba', tex:'neptune', angle:4.0 },
+  ];
+
+  // Moon
+  const moon = { orbit:22, radius:3, speed:13, angle:0 };
+
+  let lastTime = 0;
+
+  function drawCircle(img, color, cx, cy, r) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSaturnRing(cx, cy, planetR) {
+    const rx = planetR * 2.4;
+    const ry = planetR * 0.55;
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    if (textures.ring.complete && textures.ring.naturalWidth > 0) {
+      const pat = ctx.createPattern(textures.ring, 'repeat');
+      ctx.fillStyle = pat || '#c8b560';
+    } else {
+      ctx.fillStyle = 'rgba(200, 181, 96, 0.6)';
+    }
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function animate(timestamp) {
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    lastTime = timestamp;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    // Scale factor so orbits fit on screen
+    const scale = Math.min(W, H) / 1050;
+
+    // Background
+    if (textures.bg.complete && textures.bg.naturalWidth > 0) {
+      ctx.drawImage(textures.bg, 0, 0, W, H);
+    } else {
+      ctx.fillStyle = '#000010';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Update angles
+    planets.forEach(p => { p.angle += p.speed * dt * 0.5; });
+    moon.angle += moon.speed * dt * 0.5;
+
+    // Draw orbit paths
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    planets.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, p.orbit * scale, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // Sun glow
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60 * scale);
+    glow.addColorStop(0, 'rgba(255,200,50,0.5)');
+    glow.addColorStop(0.5, 'rgba(255,120,0,0.2)');
+    glow.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 60 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sun
+    const sunR = 40 * scale;
+    drawCircle(textures.sun, '#FDB813', cx, cy, sunR);
+
+    // Draw planets
+    planets.forEach(p => {
+      const px = cx + Math.cos(p.angle) * p.orbit * scale;
+      const py = cy + Math.sin(p.angle) * p.orbit * scale;
+      const pr = p.radius * scale;
+
+      // Saturn ring behind planet
+      if (p.name === 'Saturn') {
+        drawSaturnRing(px, py, pr);
+      }
+
+      // Planet glow
+      const pg = ctx.createRadialGradient(px, py, 0, px, py, pr * 1.6);
+      pg.addColorStop(0, p.color + '44');
+      pg.addColorStop(1, 'transparent');
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.arc(px, py, pr * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Planet body
+      drawCircle(textures[p.tex], p.color, px, py, pr);
+
+      // Moon orbiting Earth
+      if (p.name === 'Earth') {
+        const mr = moon.radius * scale;
+        const mx = px + Math.cos(moon.angle) * moon.orbit * scale;
+        const my = py + Math.sin(moon.angle) * moon.orbit * scale;
+        drawCircle(textures.moon, '#aaa', mx, my, mr);
+      }
+
+      // Label
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = `${Math.max(10, 11 * scale)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name, px, py + pr + 14 * scale);
+    });
+
+    requestAnimationFrame(animate);
+  }
+
+  // Wait a moment for images to start loading
+  setTimeout(() => requestAnimationFrame(animate), 100);
+</script>
+</body>
+</html>
